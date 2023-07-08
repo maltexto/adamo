@@ -1,0 +1,63 @@
+
+Vagrant.configure("2") do |config|
+  
+  config.vm.box = "debian/buster64"
+  config.vm.hostname = "fw01"
+  
+  config.vm.network "public_network", bridge: "enp3s0"
+  config.vm.network "private_network", ip: "10.100.100.254"
+
+
+  config.vm.provider "virtualbox" do |vb|
+     vb.gui = false
+     vb.memory = "512"
+  end
+  config.vm.provision "shell", inline: <<-SHELL
+    apt update
+  SHELL
+
+
+  # ==NTP==
+  config.vm.provision "shell", inline: <<-SHELL
+    echo $TZ >> /etc/environment
+    apt install -y chrony
+    cat /vagrant/ntp/chrony.conf > /etc/chrony/chrony.conf
+    systemctl restart chrony
+  SHELL
+
+
+  # ==DHCP== 
+  config.vm.provision "shell", inline: <<-SHELL
+     apt install -y isc-dhcp-server
+     cat /vagrant/dhcp/dhcpd.conf > /etc/dhcp/dhcpd.conf
+     cat /vagrant/dhcp/isc-dhcp-server > /etc/default/isc-dhcp-server
+     systemctl restart isc-dhcp-server
+  SHELL
+
+
+  # ==FIREWALL==
+  config.vm.provision "shell", inline: <<-SHELL
+    echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+    
+    cat /vagrant/iptables/firewall.fw01 > /usr/local/bin/adamo.sh
+    chmod +x /usr/local/bin/adamo.sh
+
+    cat /vagrant/iptables/adamo.service > /etc/systemd/system/adamo.service
+    systemctl daemon-reload
+    systemctl enable adamo
+    systemctl start adamo
+  SHELL
+
+
+  # ==SSH==
+  config.vm.provision "shell", inline: <<-SHELL
+    useradd -m -s /bin/bash -p $(openssl passwd -1 $PASS) $USER
+
+    cat /vagrant/ssh/banner > /etc/ssh/banner
+    cat /vagrant/ssh/sshd_config > /etc/ssh/sshd_config
+
+    systemctl restart sshd
+  SHELL
+
+
+end
