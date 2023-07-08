@@ -1,0 +1,8 @@
+[Unit]
+Description=ADAMO
+
+[Service]
+ExecStart=/usr/local/bin/adamo.sh
+
+[Install]
+WantedBy=multi-user.target
