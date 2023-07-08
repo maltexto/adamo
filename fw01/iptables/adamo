@@ -1,0 +1,91 @@
+#!/bin/bash
+
+LINK_NAT=$(ip -o -4 addr show dev eth0 | awk '{print $4}' | cut -d '/' -f 1)
+LINK_OUT=$(ip -o -4 addr show dev eth1 | awk '{print $4}' | cut -d '/' -f 1)
+LINK_IN=$(ip -o -4 addr show dev eth2 | awk '{print $4}' | cut -d '/' -f 1)
+
+SELF_SSH_PORT="22"
+
+SFW2_IP="10.100.100.253"
+SFW2_SSH_PORT="2022"
+
+SWEB1_IP="10.200.200.10"
+SWEB1_APACHE_PORT="8000"
+SWEB1_SSH_PORT="3022"
+
+SWEB2_IP="10.200.200.11"
+SWEB2_APACHE_PORT="8080"
+SWEB2_SSH_PORT="4022"
+
+SWEB3_IP="10.200.200.12"
+SWEB3_APACHE_PORT="8888"
+SWEB3_SSH_PORT="5022"
+
+SBKP_IP="10.200.200.5"
+SBKP_SSH_PORT="6022"
+
+function flushfw() {
+    /sbin/iptables -F
+    /sbin/iptables -F -t nat
+}
+
+function showfw() {
+    /sbin/iptables -t nat -L -n
+    /sbin/iptables -L -n
+}
+
+flushfw
+
+# @ALL ntp
+/sbin/iptables -A INPUT -p udp --dport 123 -m state --state NEW,ESTABLISHED -j ACCEPT
+/sbin/iptables -A OUTPUT -p udp --sport 123 -m state --state ESTABLISHED -j ACCEPT
+
+# @ALL Chrony
+/sbin/iptables -A INPUT -p udp --dport 323 -m state --state NEW,ESTABLISHED -j ACCEPT
+/sbin/iptables -A OUTPUT -p udp --sport 323 -m state --state ESTABLISHED -j ACCEPT
+
+# @SELF SSH
+/sbin/iptables -A INPUT -p tcp --dport $SELF_SSH_PORT --syn -j LOG --log-prefix "[SSH ACCESS]"
+/sbin/iptables -A INPUT -p tcp -s 0/0 -d $LINK_OUT --sport 513:65535 --dport $SELF_SSH_PORT -m state --state NEW,ESTABLISHED -j ACCEPT
+/sbin/iptables -A OUTPUT -p tcp -s $LINK_OUT -d 0/0 --sport $SELF_SSH_PORT --dport 513:65535 -m state --state ESTABLISHED -j ACCEPT
+
+# @SELF NAT
+/sbin/iptables -t nat -A POSTROUTING -o $LINK_IN -j MASQUERADE
+/sbin/iptables -A FORWARD -i $LINK_IN -o $LINK_OUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+/sbin/iptables -A FORWARD -i $LINK_OUT -o $LINK_IN -j ACCEPT
+
+# SSH @FW02
+/sbin/iptables -t nat -A PREROUTING -p tcp -d $LINK_OUT --dport $SFW2_SSH_PORT -j DNAT --to $SFW2_IP:22
+/sbin/iptables -A FORWARD -p tcp -d $SFW2_IP --dport 22 -j ACCEPT
+
+
+# SSH @BKP
+/sbin/iptables -t nat -A PREROUTING -p tcp -d $LINK_OUT --dport $SBKP_SSH_PORT -j DNAT --to $SBKP_IP:22
+/sbin/iptables -A FORWARD -p tcp -d $SBKP_IP --dport 22 -j ACCEPT
+
+# SSH @WEB01
+/sbin/iptables -t nat -A PREROUTING -p tcp -d $LINK_OUT --dport $SWEB1_SSH_PORT -j DNAT --to $SWEB1_IP:22
+/sbin/iptables -A FORWARD -p tcp -d $SWEB1_IP --dport 22 -j ACCEPT
+
+# WEBPAGE @WEB01
+/sbin/iptables -t nat -A PREROUTING -p tcp -d $LINK_OUT --dport $SWEB1_APACHE_PORT -j DNAT --to $SWEB1_IP:80
+/sbin/iptables  -t nat -A POSTROUTING -o $LINK_OUT -j MASQUERADE
+
+# SSH @WEB02
+/sbin/iptables -t nat -A PREROUTING -p tcp -d $LINK_OUT --dport $SWEB2_SSH_PORT -j DNAT --to $SWEB2_IP:22
+/sbin/iptables -A FORWARD -p tcp -d $SWEB2_IP --dport 22 -j ACCEPT
+
+# WEBPAGE @WEB02
+/sbin/iptables -t nat -A PREROUTING -p tcp -d $LINK_OUT --dport $SWEB2_APACHE_PORT -j DNAT --to $SWEB2_IP:80
+/sbin/iptables  -t nat -A POSTROUTING -o $LINK_OUT -j MASQUERADE
+
+# SSH @WEB03
+/sbin/iptables -t nat -A PREROUTING -p tcp -d $LINK_OUT --dport $SWEB3_SSH_PORT -j DNAT --to $SWEB3_IP:22
+/sbin/iptables -A FORWARD -p tcp -d $SWEB3_IP --dport 22 -j ACCEPT
+
+# WEBPAGE @WEB03
+/sbin/iptables -t nat -A PREROUTING -p tcp -d $LINK_OUT --dport $SWEB3_APACHE_PORT -j DNAT --to $SWEB3_IP:443
+/sbin/iptables  -t nat -A POSTROUTING -o $LINK_OUT -j MASQUERADE
+
+
+
