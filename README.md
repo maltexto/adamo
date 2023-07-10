@@ -1,4 +1,4 @@
-<div style="text-align: center;">
+<div align="center">
     <pre>
  █████╗ ██████╗  █████╗ ███╗   ███╗ ██████╗ 
 ██╔══██╗██╔══██╗██╔══██╗████╗ ████║██╔═══██╗
@@ -17,7 +17,7 @@ The goal of this project is just to experiment with IaaS concepts using Vagrant 
 
 ### 🏃 RUN
 If, by some curious twist of fate (or sheer madness), 
-you find yourself compelled to run this project or experience its whimsical nature, follow these steps:
+you find yourself compelled to run this project or experience its whimsical nature, follow these steps: 👺 ... 👺
 
 ### 🎯 Challenges
 
