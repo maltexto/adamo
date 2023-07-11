@@ -1,0 +1,11 @@
+#!/bin/bash
+
+function flushfw() {
+    /sbin/iptables -F
+    /sbin/iptables -F -t nat
+}
+
+function showfw() {
+    /sbin/iptables -t nat -L -n
+    /sbin/iptables -L -n
+}
